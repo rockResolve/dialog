@@ -102,15 +102,19 @@ export class DialogRenderer {
       dialogHost.addEventListener('click', stopPropagation);
 
       return new Promise((resolve) => {
-        modalContainer.addEventListener(transitionEvent(), onTransitionEnd);
+        modalContainer.addEventListener(transitionEvent(), this.onShowTransitionEnd);
 
-        function onTransitionEnd(e) {
-          if (e.target !== modalContainer) {
+        this.onShowTransitionEnd = function onShowTransitionEnd(e) {
+          if (e && e.target !== modalContainer) {
             return;
           }
-          modalContainer.removeEventListener(transitionEvent(), onTransitionEnd);
+          modalContainer.removeEventListener(transitionEvent(), this.onShowTransitionEnd);
           resolve();
         }
+
+        //transitionEvent does not always fire.
+        //But onShowTransitionEnd resolve() is needed for caller to await showDialogPromise.
+        setTimeout(this.onShowTransitionEnd, settings.showDialogTimeout);
 
         modalOverlay.classList.add('active');
         modalContainer.classList.add('active');
@@ -121,6 +125,9 @@ export class DialogRenderer {
     dialogController.hideDialog = () => {
       modalContainer.removeEventListener('click', closeModalClick);
       dialogHost.removeEventListener('click', stopPropagation);
+
+      //If dialog closed immediately after opened, and caller did not wait for showDialogPromise to complete, ensure Show completes
+      this.onShowTransitionEnd();
 
       let i = this.dialogControllers.indexOf(dialogController);
       if (i !== -1) {
