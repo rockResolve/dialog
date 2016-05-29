@@ -104,16 +104,16 @@ jspm install aurelia-dialog
   ```
 3. Create (if you haven't already) a file `main.js` in your `src` folder with following content:
 
-```javascript
+  ```javascript
   export function configure(aurelia) {
-    aurelia.use
-      .standardConfiguration()
-      .developmentLogging()
-      .plugin('aurelia-dialog');
+  aurelia.use
+    .standardConfiguration()
+    .developmentLogging()
+    .plugin('aurelia-dialog');
 
-    aurelia.start().then(a => a.setRoot());
+  aurelia.start().then(a => a.setRoot());
   }
-```
+  ```
 
 ## Using the plugin
 
@@ -205,6 +205,62 @@ There are a few ways you can take advantage of the Aurelia dialog.
   </template>
   ```
 
+### Force close from code - Progress dialogs
+
+Maybe you want to show a dialog during a long running process e.g. a progress dialog while data is retrieved. The controller's close method can be accessed via your model -
+
+```javascript
+activate(progressOptions) {
+	progressOptions.closeDialog = () => {
+		that.controller.close(true, null)
+			.catch((error) => {
+				//dont care if close failed
+				console.log("Error: controller.close threw error: " + error);
+			});
+	}
+}
+```
+
+Then your app's view-model can force the dialog to close -
+
+```javascript
+getDataWithProgressDialog(getDataPromise) {
+	let progressOptions = {
+		waitMessage: "Fetching data",
+	};
+	this.dialogService.open({
+		viewModel: Progress,
+		model: progressOptions
+	});
+
+	getDataPromise.then(() => {
+		progressOptions.closeDialog();
+	});
+}
+```
+
+However your getDataPromise could finish before the dialog show has completed (the show has a 200 ms transition to finish after it has got its resources). Some data fetch promises can resolve very quickly if the data is cached. You should ensure the show has completed by chaining from the showDialogPromise added to the model by the dialog service.
+
+```javascript
+getDataWithProgressDialog(getDataPromise) {
+	let progressOptions = {
+		waitMessage: "Fetching data"
+	};
+
+	this.dialogService.open({
+		viewModel: Progress,
+		model: progressOptions
+	});
+
+  getDataPromise.then(() => {
+		return progressOptions.showDialogPromise
+	}).then(() => {
+		progressOptions.closeDialog();
+	});
+}
+```
+
+
 ### attach-focus custom attribute
 
 The modal exposes an `attach-focus` custom attribute that allows focusing in on an element in the modal when it is loaded.  You can use this to focus a button, input, etc...  Example usage -
@@ -253,6 +309,7 @@ The settings available for the dialog are set on the dialog controller on a per-
 - `lock` makes the dialog modal, and removes the close button from the top-right hand corner. (defaults to true)
 - `centerHorizontalOnly` means that the dialog will be centered horizontally, and the vertical alignment is left up to you. (defaults to false)
 - `position` a callback that is called right before showing the modal with the signature: `(modalContainer: Element, modalOverlay: Element) => void`. This allows you to setup special classes, play with the position, etc... If specified, `centerHorizontalOnly` is ignored. (optional)
+- `showDialogTimeout` sets the timeout before the show dialog transitionEnd event is forced, as it is sometimes lost. It should be just greater than dialog.css ai-dialog-container transition duration, which defaults to 200. (defaults to 250)
 
 ```javascript
 export class Prompt {

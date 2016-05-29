@@ -42,12 +42,14 @@ export class DialogService {
         host: host
       };
 
-      return _getViewModel(instruction, this.compositionEngine).then(returnedInstruction => {
+      let showDialogPromise = _getViewModel(instruction, this.compositionEngine).then(returnedInstruction => {
         dialogController.viewModel = returnedInstruction.viewModel;
         dialogController.slot = returnedInstruction.viewSlot;
 
         return invokeLifecycle(dialogController.viewModel, 'canActivate', dialogController.settings.model).then(canActivate => {
-          if (canActivate) {
+          if (!canActivate) {
+              return false;
+          } else {
             this.controllers.push(dialogController);
             this.hasActiveDialog = !!this.controllers.length;
 
@@ -56,10 +58,20 @@ export class DialogService {
               dialogController.view = controller.view;
 
               return dialogController._renderer.showDialog(dialogController);
+            }).then(function () {
+              return true;
             });
           }
         });
       });
+
+      if (settings) {
+        if (settings.model) {
+          settings.model.showDialogPromise = showDialogPromise;
+        } else if (settings.viewModel) {
+          settings.viewModel.showDialogPromise = showDialogPromise;
+        }
+      }
     });
 
     return promise.then((result) => {
